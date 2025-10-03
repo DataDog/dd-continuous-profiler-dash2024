@@ -41,11 +41,11 @@ var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
 func main() {
 	logWriter := &lumberjack.Logger{
 		Filename:   "debug.log",
-		MaxSize:    2,
-		MaxBackups: 3,
+		MaxSize:    10,
+		MaxBackups: 2,
 	}
 
-	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+	handler := slog.NewJSONHandler(logWriter, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
 	LOG = slog.New(handler)
@@ -179,7 +179,7 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 			oldMovies = append(oldMovies, movie)
 		}
 	}
-	LOG.Debug("Found the following oldMovies", "oldMovies", asJSON(oldMovies))
+	LOG.Debug("Found the following oldMovies", "oldMovies", oldMovies)
 
 	var limitedMovies []Movie
 	for i, movie := range oldMovies {
@@ -188,20 +188,15 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		limitedMovies = append(limitedMovies, movie)
 	}
-	LOG.Debug("With limit, the result was", "limit", limit, "result", asJSON(limitedMovies))
+	LOG.Debug("With limit, the result was", "limit", limit, "result", limitedMovies)
 
 	replyJSON(w, limitedMovies)
 }
 
 func isOlderThan(year string, movie Movie) bool {
 	result := movie.ReleaseDate < year
-	LOG.Debug("Is movie older than year?", "movie", asJSON(movie), "year", year, "result", result)
+	LOG.Debug("Is movie older than year?", "movie", movie, "year", year, "result", result)
 	return result
-}
-
-func asJSON[T any](value T) string {
-	data, _ := json.Marshal(value)
-	return string(data)
 }
 
 func loadMovies() []Movie {
