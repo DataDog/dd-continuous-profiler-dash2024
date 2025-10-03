@@ -17,6 +17,7 @@ import (
 )
 
 var MOVIES = cache(loadMovies)
+var CREDITS = loadCredits
 
 func main() {
 	http.HandleFunc("/", randomMovieHandler)
@@ -30,6 +31,7 @@ func main() {
 
 	// Warm these up at application start
 	MOVIES()
+	CREDITS()
 
 	log.Printf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr)
 
@@ -67,11 +69,22 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, movie := range movies {
 		moviesWithCredits = append(moviesWithCredits, MovieWithCredits{
 			Movie:   movie,
-			Credits: []Credit{},
+			Credits: creditsForMovie(movie),
 		})
 	}
 
 	replyJSON(w, moviesWithCredits)
+}
+
+func creditsForMovie(movie Movie) []Credit {
+	credits := CREDITS()
+	var movieCredits []Credit
+	for _, credit := range credits {
+		if credit.Id == movie.Id {
+			movieCredits = append(movieCredits, credit)
+		}
+	}
+	return movieCredits
 }
 
 func loadMovies() []Movie {
