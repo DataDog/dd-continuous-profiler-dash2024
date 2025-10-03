@@ -45,7 +45,7 @@ func main() {
 		MaxBackups: 2,
 	}
 
-	handler := slog.NewJSONHandler(logWriter, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
 	LOG = slog.New(handler)
@@ -260,6 +260,11 @@ type Movie struct {
 	VoteAverage   string `json:"voteAverage"`
 }
 
+func (m Movie) String() string {
+	data, _ := json.MarshalIndent(m, "", "  ")
+	return string(data)
+}
+
 type Credit struct {
 	Id   string   `json:"id"`
 	Crew []string `json:"crew"`
@@ -282,7 +287,6 @@ func cache[T any](fn func() T) func() T {
 
 func replyJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	encoder.Encode(data)
+	jsonData, _ := json.MarshalIndent(data, "", "  ")
+	w.Write(jsonData)
 }
