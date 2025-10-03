@@ -159,10 +159,10 @@ type MovieWithCredits struct {
 	Credits []Credit `json:"credits"`
 }
 
-func cache(fn func() []Movie) func() []Movie {
+func cache[T any](fn func() T) func() T {
 	var once sync.Once
-	var result []Movie
-	return func() []Movie {
+	var result T
+	return func() T {
 		once.Do(func() { result = fn() })
 		return result
 	}
