@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +36,7 @@ var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
 func main() {
 	http.HandleFunc("/", randomMovieHandler)
 	http.HandleFunc("/credits", creditsHandler)
+	http.HandleFunc("/movies", moviesHandler)
 
 	addr := "127.0.0.1:8082"
 	version := os.Getenv("DD_VERSION")
@@ -103,6 +106,43 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 // Fix 2
 func creditsForMovie(movie Movie) []Credit {
 	return CREDITS_BY_MOVIE_ID()[movie.Id]
+}
+
+func moviesHandler(w http.ResponseWriter, r *http.Request) {
+	movies := MOVIES()
+	movies = sortByDescReleaseDate(movies)
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		query = r.URL.Query().Get("query")
+	}
+	if query != "" {
+		var filteredMovies []Movie
+		for _, movie := range movies {
+			pattern, err := regexp.Compile(".*" + strings.ToUpper(query) + ".*")
+			if err == nil && pattern.MatchString(strings.ToUpper(movie.Title)) {
+				filteredMovies = append(filteredMovies, movie)
+			}
+		}
+		movies = filteredMovies
+	}
+	replyJSON(w, movies)
+}
+
+func sortByDescReleaseDate(movies []Movie) []Movie {
+	sortedMovies := make([]Movie, len(movies))
+	copy(sortedMovies, movies)
+	sort.Slice(sortedMovies, func(i, j int) bool {
+		dateI, errI := time.Parse("1999-12-31", sortedMovies[i].ReleaseDate)
+		if errI != nil {
+			dateI = time.Time{}
+		}
+		dateJ, errJ := time.Parse("1999-12-31", sortedMovies[j].ReleaseDate)
+		if errJ != nil {
+			dateJ = time.Time{}
+		}
+		return dateI.After(dateJ)
+	})
+	return sortedMovies
 }
 
 func loadMovies() []Movie {
