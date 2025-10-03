@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
@@ -18,6 +19,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+var LOG *slog.Logger
 
 var MOVIES = cache(loadMovies)
 
@@ -35,6 +38,23 @@ var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
 })
 
 func main() {
+	// Configure logger to match logback.xml
+	logFile, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		panic("Failed to open log file: " + err.Error())
+	}
+
+	handler := slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	})
+	LOG = slog.New(handler)
+
 	http.HandleFunc("/", randomMovieHandler)
 	http.HandleFunc("/credits", creditsHandler)
 	http.HandleFunc("/movies", moviesHandler)
@@ -164,6 +184,7 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 			oldMovies = append(oldMovies, movie)
 		}
 	}
+	LOG.Debug("Found the following oldMovies", "oldMovies", oldMovies)
 
 	var limitedMovies []Movie
 	for i, movie := range oldMovies {
@@ -172,12 +193,15 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		limitedMovies = append(limitedMovies, movie)
 	}
+	LOG.Debug("With limit, the result was", "limit", limit, "result", limitedMovies)
 
 	replyJSON(w, limitedMovies)
 }
 
 func isOlderThan(year string, movie Movie) bool {
-	return movie.ReleaseDate < year
+	result := movie.ReleaseDate < year
+	LOG.Debug("Is movie older than year?", "movie", movie, "year", year, "result", result)
+	return result
 }
 
 func loadMovies() []Movie {
