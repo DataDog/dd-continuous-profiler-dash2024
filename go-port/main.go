@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 var MOVIES = cache(loadMovies)
 
 func main() {
+	http.HandleFunc("/", randomMovieHandler)
 	http.HandleFunc("/credits", creditsHandler)
 
 	addr := "127.0.0.1:8082"
@@ -27,6 +29,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
+}
+
+func randomMovieHandler(w http.ResponseWriter, r *http.Request) {
+	replyJSON(w, MOVIES()[rand.Intn(len(MOVIES()))])
 }
 
 func creditsHandler(w http.ResponseWriter, r *http.Request) {
