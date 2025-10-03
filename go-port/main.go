@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ func main() {
 	http.HandleFunc("/", randomMovieHandler)
 	http.HandleFunc("/credits", creditsHandler)
 	http.HandleFunc("/movies", moviesHandler)
+	http.HandleFunc("/old-movies", oldMoviesHandler)
 
 	addr := "127.0.0.1:8082"
 	version := os.Getenv("DD_VERSION")
@@ -143,6 +145,39 @@ func sortByDescReleaseDate(movies []Movie) []Movie {
 		return dateI.After(dateJ)
 	})
 	return sortedMovies
+}
+
+func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
+	year := r.URL.Query().Get("year")
+	if year == "" {
+		year = "2010"
+	}
+	nStr := r.URL.Query().Get("n")
+	if nStr == "" {
+		nStr = "10"
+	}
+	limit, _ := strconv.Atoi(nStr)
+
+	var oldMovies []Movie
+	for _, movie := range MOVIES() {
+		if isOlderThan(year, movie) {
+			oldMovies = append(oldMovies, movie)
+		}
+	}
+
+	var limitedMovies []Movie
+	for i, movie := range oldMovies {
+		if i >= limit {
+			break
+		}
+		limitedMovies = append(limitedMovies, movie)
+	}
+
+	replyJSON(w, limitedMovies)
+}
+
+func isOlderThan(year string, movie Movie) bool {
+	return movie.ReleaseDate < year
 }
 
 func loadMovies() []Movie {
