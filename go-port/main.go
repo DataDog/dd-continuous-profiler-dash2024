@@ -33,6 +33,24 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `{"message": "Credits endpoint hit"}`)
 }
 
+func loadMovies() []Movie {
+	file, err := os.Open("../movies-v2.json.gz")
+	if err != nil {
+		panic("Failed to load movie data: " + err.Error())
+	}
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		panic("Failed to load movie data: " + err.Error())
+	}
+	defer gzipReader.Close()
+	var movies []Movie
+	if err := json.NewDecoder(gzipReader).Decode(&movies); err != nil {
+		panic("Failed to load movie data: " + err.Error())
+	}
+	return movies
+}
+
 type Movie struct {
 	Id            string `json:"id"`
 	OriginalTitle string `json:"originalTitle"`
