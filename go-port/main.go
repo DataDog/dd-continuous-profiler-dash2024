@@ -1,11 +1,16 @@
 package main
 
 import (
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"sync"
 )
+
+var MOVIES = cache(loadMovies)
 
 func main() {
 	http.HandleFunc("/credits", creditsHandler)
@@ -59,4 +64,13 @@ type Movie struct {
 	Tagline       string `json:"tagline"`
 	Title         string `json:"title"`
 	VoteAverage   string `json:"voteAverage"`
+}
+
+func cache(fn func() []Movie) func() []Movie {
+	var once sync.Once
+	var result []Movie
+	return func() []Movie {
+		once.Do(func() { result = fn() })
+		return result
+	}
 }
