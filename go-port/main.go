@@ -32,3 +32,13 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, `{"message": "Credits endpoint hit"}`)
 }
+
+type Movie struct {
+	Id            string `json:"id"`
+	OriginalTitle string `json:"originalTitle"`
+	Overview      string `json:"overview"`
+	ReleaseDate   string `json:"releaseDate"`
+	Tagline       string `json:"tagline"`
+	Title         string `json:"title"`
+	VoteAverage   string `json:"voteAverage"`
+}
