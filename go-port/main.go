@@ -10,15 +10,15 @@ import (
 func main() {
 	http.HandleFunc("/credits", creditsHandler)
 
+	addr := "127.0.0.1:8082"
 	version := os.Getenv("DD_VERSION")
 	if version == "" {
 		version = "(not set)"
 	}
 
-	log.Printf("Running version %s with pid %d", version, os.Getpid())
-	log.Println("Server starting on http://127.0.0.1:8081")
+	log.Printf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr)
 
-	err := http.ListenAndServe("127.0.0.1:8081", nil)
+	err := http.ListenAndServe(addr, nil)
 	if err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
