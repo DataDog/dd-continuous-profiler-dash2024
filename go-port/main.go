@@ -18,6 +18,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var LOG *slog.Logger
@@ -38,20 +39,14 @@ var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
 })
 
 func main() {
-	// Configure logger to match logback.xml
-	logFile, err := os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		panic("Failed to open log file: " + err.Error())
+	logWriter := &lumberjack.Logger{
+		Filename:   "debug.log",
+		MaxSize:    2,
+		MaxBackups: 3,
 	}
 
-	handler := slog.NewTextHandler(logFile, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
-			return a
-		},
 	})
 	LOG = slog.New(handler)
 
