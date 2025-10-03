@@ -23,6 +23,9 @@ func main() {
 		version = "(not set)"
 	}
 
+	// Warm these up at application start
+	MOVIES()
+
 	log.Printf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr)
 
 	err := http.ListenAndServe(addr, nil)
