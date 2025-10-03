@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"log"
 	"math/rand"
@@ -9,6 +10,10 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var MOVIES = cache(loadMovies)
@@ -85,6 +90,39 @@ func loadMovies() []Movie {
 		panic("Failed to load movie data: " + err.Error())
 	}
 	return movies
+}
+
+func loadCredits() []Credit {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		panic("Failed to load credit data: " + err.Error())
+	}
+	defer client.Disconnect(ctx)
+
+	creditsCollection := client.Database("moviesDB").Collection("credits")
+	cursor, err := creditsCollection.Find(ctx, map[string]interface{}{}, options.Find().SetBatchSize(5000))
+	if err != nil {
+		panic("Failed to load credit data: " + err.Error())
+	}
+	defer cursor.Close(ctx)
+
+	var credits []Credit
+	for cursor.Next(ctx) {
+		var credit Credit
+		if err := cursor.Decode(&credit); err != nil {
+			panic("Failed to load credit data: " + err.Error())
+		}
+		credits = append(credits, credit)
+	}
+
+	if err := cursor.Err(); err != nil {
+		panic("Failed to load credit data: " + err.Error())
+	}
+
+	return credits
 }
 
 type Movie struct {
