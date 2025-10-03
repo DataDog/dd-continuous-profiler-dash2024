@@ -17,7 +17,19 @@ import (
 )
 
 var MOVIES = cache(loadMovies)
-var CREDITS = loadCredits
+
+// Fix 1
+// var CREDITS = loadCredits
+var CREDITS = cache(loadCredits)
+
+// Fix 2
+var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
+	result := make(map[string][]Credit)
+	for _, credit := range CREDITS() {
+		result[credit.Id] = append(result[credit.Id], credit)
+	}
+	return result
+})
 
 func main() {
 	http.HandleFunc("/", randomMovieHandler)
@@ -76,15 +88,21 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	replyJSON(w, moviesWithCredits)
 }
 
+// Fix 2
+// func creditsForMovie(movie Movie) []Credit {
+// 	credits := CREDITS()
+// 	var movieCredits []Credit
+// 	for _, credit := range credits {
+// 		if credit.Id == movie.Id {
+// 			movieCredits = append(movieCredits, credit)
+// 		}
+// 	}
+// 	return movieCredits
+// }
+
+// Fix 2
 func creditsForMovie(movie Movie) []Credit {
-	credits := CREDITS()
-	var movieCredits []Credit
-	for _, credit := range credits {
-		if credit.Id == movie.Id {
-			movieCredits = append(movieCredits, credit)
-		}
-	}
-	return movieCredits
+	return CREDITS_BY_MOVIE_ID()[movie.Id]
 }
 
 func loadMovies() []Movie {
