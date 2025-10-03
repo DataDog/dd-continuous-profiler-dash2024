@@ -3,10 +3,10 @@ package main
 import (
 	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"sync"
 )
 
@@ -30,12 +30,26 @@ func main() {
 }
 
 func creditsHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Credits endpoint was hit")
+	movies := MOVIES()
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		query = r.URL.Query().Get("query")
+	}
 
-	w.Header().Set("Content-Type", "application/json")
+	if query != "" {
+		pattern, err := regexp.Compile("(?i)" + query)
+		if err == nil {
+			var filteredMovies []Movie
+			for _, movie := range movies {
+				if pattern.MatchString(movie.Title) {
+					filteredMovies = append(filteredMovies, movie)
+				}
+			}
+			movies = filteredMovies
+		}
+	}
 
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `{"message": "Credits endpoint hit"}`)
+	replyJSON(w, movies)
 }
 
 func loadMovies() []Movie {
@@ -73,4 +87,9 @@ func cache(fn func() []Movie) func() []Movie {
 		once.Do(func() { result = fn() })
 		return result
 	}
+}
+
+func replyJSON(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
 }
