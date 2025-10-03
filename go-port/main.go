@@ -49,7 +49,15 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	replyJSON(w, movies)
+	var moviesWithCredits []MovieWithCredits
+	for _, movie := range movies {
+		moviesWithCredits = append(moviesWithCredits, MovieWithCredits{
+			Movie:   movie,
+			Credits: []Credit{},
+		})
+	}
+
+	replyJSON(w, moviesWithCredits)
 }
 
 func loadMovies() []Movie {
@@ -78,6 +86,17 @@ type Movie struct {
 	Tagline       string `json:"tagline"`
 	Title         string `json:"title"`
 	VoteAverage   string `json:"voteAverage"`
+}
+
+type Credit struct {
+	Id   string   `json:"id"`
+	Crew []string `json:"crew"`
+	Cast []string `json:"cast"`
+}
+
+type MovieWithCredits struct {
+	Movie   Movie    `json:"movie"`
+	Credits []Credit `json:"credits"`
 }
 
 func cache(fn func() []Movie) func() []Movie {
