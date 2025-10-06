@@ -26,17 +26,18 @@ var LOG *slog.Logger
 var MOVIES = cache(loadMovies)
 
 // Fix 1
-// var CREDITS = loadCredits
-var CREDITS = cache(loadCredits)
+var CREDITS = loadCredits
+
+// var CREDITS = cache(loadCredits)
 
 // Fix 2
-var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
-	result := make(map[string][]Credit)
-	for _, credit := range CREDITS() {
-		result[credit.Id] = append(result[credit.Id], credit)
-	}
-	return result
-})
+// var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
+// 	result := make(map[string][]Credit)
+// 	for _, credit := range CREDITS() {
+// 		result[credit.Id] = append(result[credit.Id], credit)
+// 	}
+// 	return result
+// })
 
 func main() {
 	logWriter := &lumberjack.Logger{
@@ -109,21 +110,21 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Fix 2
-// func creditsForMovie(movie Movie) []Credit {
-// 	credits := CREDITS()
-// 	var movieCredits []Credit
-// 	for _, credit := range credits {
-// 		if credit.Id == movie.Id {
-// 			movieCredits = append(movieCredits, credit)
-// 		}
-// 	}
-// 	return movieCredits
-// }
-
-// Fix 2
 func creditsForMovie(movie Movie) []Credit {
-	return CREDITS_BY_MOVIE_ID()[movie.Id]
+	credits := CREDITS()
+	var movieCredits []Credit
+	for _, credit := range credits {
+		if credit.Id == movie.Id {
+			movieCredits = append(movieCredits, credit)
+		}
+	}
+	return movieCredits
 }
+
+// // Fix 2
+// func creditsForMovie(movie Movie) []Credit {
+// 	return CREDITS_BY_MOVIE_ID()[movie.Id]
+// }
 
 func moviesHandler(w http.ResponseWriter, r *http.Request) {
 	movies := MOVIES()
