@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -26,18 +25,18 @@ var LOG *slog.Logger
 var MOVIES = cache(loadMovies)
 
 // Fix 1
-var CREDITS = loadCredits
+// var CREDITS = loadCredits
 
-// var CREDITS = cache(loadCredits)
+var CREDITS = cache(loadCredits)
 
 // Fix 2
-// var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
-// 	result := make(map[string][]Credit)
-// 	for _, credit := range CREDITS() {
-// 		result[credit.Id] = append(result[credit.Id], credit)
-// 	}
-// 	return result
-// })
+var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
+	result := make(map[string][]Credit)
+	for _, credit := range CREDITS() {
+		result[credit.Id] = append(result[credit.Id], credit)
+	}
+	return result
+})
 
 func main() {
 	logWriter := &lumberjack.Logger{
@@ -47,7 +46,7 @@ func main() {
 	}
 
 	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: slog.LevelInfo,
 	})
 	LOG = slog.New(handler)
 
@@ -110,55 +109,61 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Fix 2
-func creditsForMovie(movie Movie) []Credit {
-	credits := CREDITS()
-	var movieCredits []Credit
-	for _, credit := range credits {
-		if credit.Id == movie.Id {
-			movieCredits = append(movieCredits, credit)
-		}
-	}
-	return movieCredits
-}
+// func creditsForMovie(movie Movie) []Credit {
+// 	credits := CREDITS()
+// 	var movieCredits []Credit
+// 	for _, credit := range credits {
+// 		if credit.Id == movie.Id {
+// 			movieCredits = append(movieCredits, credit)
+// 		}
+// 	}
+// 	return movieCredits
+// }
 
 // // Fix 2
-// func creditsForMovie(movie Movie) []Credit {
-// 	return CREDITS_BY_MOVIE_ID()[movie.Id]
-// }
+func creditsForMovie(movie Movie) []Credit {
+	return CREDITS_BY_MOVIE_ID()[movie.Id]
+}
 
 func moviesHandler(w http.ResponseWriter, r *http.Request) {
 	movies := MOVIES()
-	movies = sortByDescReleaseDate(movies)
+	// movies = sortByDescReleaseDate(movies)
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		query = r.URL.Query().Get("query")
 	}
 	if query != "" {
+		pattern, err := regexp.Compile("(?i)" + query)
 		var filteredMovies []Movie
 		for _, movie := range movies {
-			pattern, err := regexp.Compile(".*" + strings.ToUpper(query) + ".*")
-			if err == nil && pattern.MatchString(strings.ToUpper(movie.Title)) {
+			// pattern, err := regexp.Compile(".*" + strings.ToUpper(query) + ".*")
+			// if err == nil && pattern.MatchString(strings.ToUpper(movie.Title)) {
+			if err == nil && pattern.MatchString(movie.Title) {
 				filteredMovies = append(filteredMovies, movie)
 			}
 		}
 		movies = filteredMovies
 	}
+	movies = sortByDescReleaseDate(movies)
 	replyJSON(w, movies)
 }
 
 func sortByDescReleaseDate(movies []Movie) []Movie {
 	sortedMovies := make([]Movie, len(movies))
 	copy(sortedMovies, movies)
+	// sort.Slice(sortedMovies, func(i, j int) bool {
+	// 	dateI, errI := time.Parse("1999-12-31", sortedMovies[i].ReleaseDate)
+	// 	if errI != nil {
+	// 		dateI = time.Time{}
+	// 	}
+	// 	dateJ, errJ := time.Parse("1999-12-31", sortedMovies[j].ReleaseDate)
+	// 	if errJ != nil {
+	// 		dateJ = time.Time{}
+	// 	}
+	// 	return dateI.After(dateJ)
+	// })
 	sort.Slice(sortedMovies, func(i, j int) bool {
-		dateI, errI := time.Parse("1999-12-31", sortedMovies[i].ReleaseDate)
-		if errI != nil {
-			dateI = time.Time{}
-		}
-		dateJ, errJ := time.Parse("1999-12-31", sortedMovies[j].ReleaseDate)
-		if errJ != nil {
-			dateJ = time.Time{}
-		}
-		return dateI.After(dateJ)
+		return sortedMovies[i].ReleaseDate > sortedMovies[j].ReleaseDate
 	})
 	return sortedMovies
 }
