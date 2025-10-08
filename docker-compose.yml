@@ -1,6 +1,6 @@
 version: '3'
 services:
-  movies-api-mongo-x:
+  movies-api-mongo:
     image: mongo:5
     volumes:
     - ./mongo-seed:/docker-entrypoint-initdb.d
