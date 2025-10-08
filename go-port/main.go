@@ -28,22 +28,9 @@ import (
 var logger *slog.Logger
 
 var movies = cache(loadMovies)
-
-// Fix 1
 var credits = loadCredits
 
-// var CREDITS = cache(loadCredits)
-
-// CREDITS_BY_MOVIE_ID goes in here!
-
-// Fix 2
-// var CREDITS_BY_MOVIE_ID = cache(func(ctx context.Context) map[string][]Credit {
-// 	result := make(map[string][]Credit)
-// 	for _, credit := range CREDITS(ctx) {
-// 		result[credit.Id] = append(result[credit.Id], credit)
-// 	}
-// 	return result
-// })
+// creditsByMovieId goes in here!
 
 func main() {
 	logWriter := &lumberjack.Logger{
@@ -125,7 +112,6 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	replyJSON(w, moviesWithCredits)
 }
 
-// Fix 2
 func creditsForMovie(ctx context.Context, movie Movie) []Credit {
 	credits := credits(ctx)
 	var movieCredits []Credit
@@ -136,11 +122,6 @@ func creditsForMovie(ctx context.Context, movie Movie) []Credit {
 	}
 	return movieCredits
 }
-
-// // Fix 2
-// func creditsForMovie(movie Movie) []Credit {
-// 	return CREDITS_BY_MOVIE_ID()[movie.Id]
-// }
 
 func moviesHandler(w http.ResponseWriter, r *http.Request) {
 	movies := movies(r.Context())
