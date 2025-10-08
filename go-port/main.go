@@ -4,7 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -16,6 +16,11 @@ import (
 	"sync"
 	"time"
 
+	mongotrace "github.com/DataDog/dd-trace-go/contrib/go.mongodb.org/mongo-driver/v2/mongo"
+	slogtrace "github.com/DataDog/dd-trace-go/contrib/log/slog/v2"
+	httptrace "github.com/DataDog/dd-trace-go/contrib/net/http/v2"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -31,9 +36,9 @@ var CREDITS = loadCredits
 // var CREDITS = cache(loadCredits)
 
 // Fix 2
-// var CREDITS_BY_MOVIE_ID = cache(func() map[string][]Credit {
+// var CREDITS_BY_MOVIE_ID = cache(func(ctx context.Context) map[string][]Credit {
 // 	result := make(map[string][]Credit)
-// 	for _, credit := range CREDITS() {
+// 	for _, credit := range CREDITS(ctx) {
 // 		result[credit.Id] = append(result[credit.Id], credit)
 // 	}
 // 	return result
@@ -43,18 +48,28 @@ func main() {
 	logWriter := &lumberjack.Logger{
 		Filename:   "debug.log",
 		MaxSize:    10,
-		MaxBackups: 2,
+		MaxBackups: 50,
 	}
 
-	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+	handler := slogtrace.WrapHandler(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
-	})
+	}))
 	LOG = slog.New(handler)
 
-	http.HandleFunc("/", randomMovieHandler)
-	http.HandleFunc("/credits", creditsHandler)
-	http.HandleFunc("/movies", moviesHandler)
-	http.HandleFunc("/old-movies", oldMoviesHandler)
+	if err := profiler.Start(); err != nil {
+		LOG.Error("starting profiling", slog.String("error", err.Error()))
+		return
+	}
+	if err := tracer.Start(); err != nil {
+		LOG.Error("starting tracing", slog.String("error", err.Error()))
+		return
+	}
+
+	mux := httptrace.NewServeMux()
+	mux.HandleFunc("/", randomMovieHandler)
+	mux.HandleFunc("/credits", creditsHandler)
+	mux.HandleFunc("/movies", moviesHandler)
+	mux.HandleFunc("/old-movies", oldMoviesHandler)
 
 	addr := "127.0.0.1:8082"
 	version := os.Getenv("DD_VERSION")
@@ -63,23 +78,25 @@ func main() {
 	}
 
 	// Warm these up at application start
-	MOVIES()
-	CREDITS()
+	MOVIES(context.Background())
+	CREDITS(context.Background())
 
-	log.Printf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr)
+	LOG.Info(fmt.Sprintf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr))
 
-	err := http.ListenAndServe(addr, nil)
+	err := http.ListenAndServe(addr, mux)
 	if err != nil {
-		log.Fatal("Server failed to start:", err)
+		LOG.Error("serving HTTP failed", slog.String("error", err.Error()))
 	}
 }
 
 func randomMovieHandler(w http.ResponseWriter, r *http.Request) {
-	replyJSON(w, MOVIES()[rand.Intn(len(MOVIES()))])
+	ctx := r.Context()
+	replyJSON(w, MOVIES(ctx)[rand.Intn(len(MOVIES(ctx)))])
 }
 
 func creditsHandler(w http.ResponseWriter, r *http.Request) {
-	movies := MOVIES()
+	ctx := r.Context()
+	movies := MOVIES(ctx)
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		query = r.URL.Query().Get("query")
@@ -102,7 +119,7 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, movie := range movies {
 		moviesWithCredits = append(moviesWithCredits, MovieWithCredits{
 			Movie:   movie,
-			Credits: creditsForMovie(movie),
+			Credits: creditsForMovie(ctx, movie),
 		})
 	}
 
@@ -110,8 +127,8 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Fix 2
-func creditsForMovie(movie Movie) []Credit {
-	credits := CREDITS()
+func creditsForMovie(ctx context.Context, movie Movie) []Credit {
+	credits := CREDITS(ctx)
 	var movieCredits []Credit
 	for _, credit := range credits {
 		if credit.Id == movie.Id {
@@ -127,7 +144,7 @@ func creditsForMovie(movie Movie) []Credit {
 // }
 
 func moviesHandler(w http.ResponseWriter, r *http.Request) {
-	movies := MOVIES()
+	movies := MOVIES(r.Context())
 	movies = sortByDescReleaseDate(movies)
 	query := r.URL.Query().Get("q")
 	if query == "" {
@@ -164,6 +181,7 @@ func sortByDescReleaseDate(movies []Movie) []Movie {
 }
 
 func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	year := r.URL.Query().Get("year")
 	if year == "" {
 		year = "2010"
@@ -175,12 +193,12 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(nStr)
 
 	var oldMovies []Movie
-	for _, movie := range MOVIES() {
+	for _, movie := range MOVIES(ctx) {
 		if isOlderThan(year, movie) {
 			oldMovies = append(oldMovies, movie)
 		}
 	}
-	LOG.Debug("Found the following oldMovies", "oldMovies", oldMovies)
+	LOG.DebugContext(ctx, "Found the following oldMovies", "oldMovies", oldMovies)
 
 	var limitedMovies []Movie
 	for i, movie := range oldMovies {
@@ -189,7 +207,7 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		limitedMovies = append(limitedMovies, movie)
 	}
-	LOG.Debug("With limit, the result was", "limit", limit, "result", limitedMovies)
+	LOG.DebugContext(ctx, "With limit, the result was", "limit", limit, "result", limitedMovies)
 
 	replyJSON(w, limitedMovies)
 }
@@ -200,7 +218,7 @@ func isOlderThan(year string, movie Movie) bool {
 	return result
 }
 
-func loadMovies() []Movie {
+func loadMovies(_ context.Context) []Movie {
 	file, err := os.Open("../movies-v2.json.gz")
 	if err != nil {
 		panic("Failed to load movie data: " + err.Error())
@@ -218,11 +236,13 @@ func loadMovies() []Movie {
 	return movies
 }
 
-func loadCredits() []Credit {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func loadCredits(ctx context.Context) []Credit {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	opts := options.Client().ApplyURI("mongodb://localhost:27017")
+	opts.Monitor = mongotrace.NewMonitor()
+	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
 		panic("Failed to load credit data: " + err.Error())
 	}
@@ -277,11 +297,11 @@ type MovieWithCredits struct {
 	Credits []Credit `json:"credits"`
 }
 
-func cache[T any](fn func() T) func() T {
+func cache[T any](fn func(context.Context) T) func(context.Context) T {
 	var once sync.Once
 	var result T
-	return func() T {
-		once.Do(func() { result = fn() })
+	return func(ctx context.Context) T {
+		once.Do(func() { result = fn(ctx) })
 		return result
 	}
 }
