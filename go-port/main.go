@@ -25,14 +25,16 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var LOG *slog.Logger
+var logger *slog.Logger
 
-var MOVIES = cache(loadMovies)
+var movies = cache(loadMovies)
 
 // Fix 1
-var CREDITS = loadCredits
+var credits = loadCredits
 
 // var CREDITS = cache(loadCredits)
+
+// CREDITS_BY_MOVIE_ID goes in here!
 
 // Fix 2
 // var CREDITS_BY_MOVIE_ID = cache(func(ctx context.Context) map[string][]Credit {
@@ -53,7 +55,7 @@ func main() {
 	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
-	LOG = slog.New(handler)
+	logger = slog.New(handler)
 
 	if err := profiler.Start(); err != nil {
 		panic("starting profiling: " + err.Error())
@@ -75,8 +77,8 @@ func main() {
 	}
 
 	// Warm these up at application start
-	MOVIES(context.Background())
-	CREDITS(context.Background())
+	movies(context.Background())
+	credits(context.Background())
 
 	log.Printf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr)
 
@@ -88,12 +90,12 @@ func main() {
 
 func randomMovieHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	replyJSON(w, MOVIES(ctx)[rand.Intn(len(MOVIES(ctx)))])
+	replyJSON(w, movies(ctx)[rand.Intn(len(movies(ctx)))])
 }
 
 func creditsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	movies := MOVIES(ctx)
+	movies := movies(ctx)
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		query = r.URL.Query().Get("query")
@@ -125,7 +127,7 @@ func creditsHandler(w http.ResponseWriter, r *http.Request) {
 
 // Fix 2
 func creditsForMovie(ctx context.Context, movie Movie) []Credit {
-	credits := CREDITS(ctx)
+	credits := credits(ctx)
 	var movieCredits []Credit
 	for _, credit := range credits {
 		if credit.Id == movie.Id {
@@ -141,7 +143,7 @@ func creditsForMovie(ctx context.Context, movie Movie) []Credit {
 // }
 
 func moviesHandler(w http.ResponseWriter, r *http.Request) {
-	movies := MOVIES(r.Context())
+	movies := movies(r.Context())
 	movies = sortByDescReleaseDate(movies)
 	query := r.URL.Query().Get("q")
 	if query == "" {
@@ -190,12 +192,12 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(nStr)
 
 	var oldMovies []Movie
-	for _, movie := range MOVIES(ctx) {
+	for _, movie := range movies(ctx) {
 		if isOlderThan(year, movie) {
 			oldMovies = append(oldMovies, movie)
 		}
 	}
-	LOG.Debug("Found the following oldMovies", "oldMovies", oldMovies)
+	logger.Debug("Found the following oldMovies", "oldMovies", oldMovies)
 
 	var limitedMovies []Movie
 	for i, movie := range oldMovies {
@@ -204,14 +206,14 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		limitedMovies = append(limitedMovies, movie)
 	}
-	LOG.Debug("With limit, the result was", "limit", limit, "result", limitedMovies)
+	logger.Debug("With limit, the result was", "limit", limit, "result", limitedMovies)
 
 	replyJSON(w, limitedMovies)
 }
 
 func isOlderThan(year string, movie Movie) bool {
 	result := movie.ReleaseDate < year
-	LOG.Debug("Is movie older than year?", "movie", movie, "year", year, "result", result)
+	logger.Debug("Is movie older than year?", "movie", movie, "year", year, "result", result)
 	return result
 }
 
