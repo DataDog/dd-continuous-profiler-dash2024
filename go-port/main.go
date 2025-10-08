@@ -4,7 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -17,7 +17,6 @@ import (
 	"time"
 
 	mongotrace "github.com/DataDog/dd-trace-go/contrib/go.mongodb.org/mongo-driver/v2/mongo"
-	slogtrace "github.com/DataDog/dd-trace-go/contrib/log/slog/v2"
 	httptrace "github.com/DataDog/dd-trace-go/contrib/net/http/v2"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/DataDog/dd-trace-go/v2/profiler"
@@ -48,21 +47,19 @@ func main() {
 	logWriter := &lumberjack.Logger{
 		Filename:   "debug.log",
 		MaxSize:    10,
-		MaxBackups: 50,
+		MaxBackups: 2,
 	}
 
-	handler := slogtrace.WrapHandler(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
-	}))
+	})
 	LOG = slog.New(handler)
 
 	if err := profiler.Start(); err != nil {
-		LOG.Error("starting profiling", slog.String("error", err.Error()))
-		return
+		panic("starting profiling: " + err.Error())
 	}
 	if err := tracer.Start(); err != nil {
-		LOG.Error("starting tracing", slog.String("error", err.Error()))
-		return
+		panic("starting tracing: " + err.Error())
 	}
 
 	mux := httptrace.NewServeMux()
@@ -81,11 +78,11 @@ func main() {
 	MOVIES(context.Background())
 	CREDITS(context.Background())
 
-	LOG.Info(fmt.Sprintf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr))
+	log.Printf("Running version %s with pid %d; Server starting on http://%s", version, os.Getpid(), addr)
 
 	err := http.ListenAndServe(addr, mux)
 	if err != nil {
-		LOG.Error("serving HTTP failed", slog.String("error", err.Error()))
+		log.Fatal("Server failed to start:", err)
 	}
 }
 
@@ -198,7 +195,7 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 			oldMovies = append(oldMovies, movie)
 		}
 	}
-	LOG.DebugContext(ctx, "Found the following oldMovies", "oldMovies", oldMovies)
+	LOG.Debug("Found the following oldMovies", "oldMovies", oldMovies)
 
 	var limitedMovies []Movie
 	for i, movie := range oldMovies {
@@ -207,7 +204,7 @@ func oldMoviesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		limitedMovies = append(limitedMovies, movie)
 	}
-	LOG.DebugContext(ctx, "With limit, the result was", "limit", limit, "result", limitedMovies)
+	LOG.Debug("With limit, the result was", "limit", limit, "result", limitedMovies)
 
 	replyJSON(w, limitedMovies)
 }
