@@ -44,7 +44,15 @@ func main() {
 	})
 	logger = slog.New(handler)
 
-	if err := profiler.Start(); err != nil {
+	if err := profiler.Start(
+		profiler.WithProfileTypes(
+			profiler.CPUProfile,
+			profiler.HeapProfile,
+			profiler.BlockProfile,
+			profiler.MutexProfile,
+			profiler.GoroutineProfile,
+		),
+	); err != nil {
 		panic("starting profiling: " + err.Error())
 	}
 	if err := tracer.Start(); err != nil {
